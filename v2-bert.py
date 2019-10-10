@@ -258,7 +258,7 @@ train_loss_set = []
 epochs = 2
 
 # trange is a tqdm wrapper around the normal python range
-for _ in tnrange(epochs, desc="Epoch"):
+for _ in trange(epochs, desc="Epoch"):
     # Training
 
     # Set our model to training mode (as opposed to evaluation mode)
