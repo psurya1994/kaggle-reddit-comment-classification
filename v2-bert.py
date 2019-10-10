@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
+# In[8]:
 
 
 from visdom import Visdom
@@ -28,7 +28,7 @@ class VisdomLinePlotter(object):
 vis = VisdomLinePlotter()
 
 
-# In[2]:
+# In[9]:
 
 
 import torch
@@ -42,10 +42,10 @@ import pandas as pd
 import io
 import numpy as np
 import matplotlib.pyplot as plt
-# get_ipython().run_line_magic('matplotlib', 'inline')
+get_ipython().run_line_magic('matplotlib', 'inline')
 
 
-# In[3]:
+# In[10]:
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -53,7 +53,7 @@ n_gpu = torch.cuda.device_count()
 torch.cuda.get_device_name(0)
 
 
-# In[4]:
+# In[11]:
 
 
 import numpy as np
@@ -83,31 +83,32 @@ from sklearn import metrics
 from sklearn.naive_bayes import GaussianNB
 from sklearn.naive_bayes import BernoulliNB
 from sklearn.neural_network import MLPClassifier
-from tqdm import tqdm, tnrange
 
-# In[5]:
+
+# In[13]:
 
 
 df = pd.read_csv('reddit_train.csv')
 df2 = pd.read_csv('reddit_test.csv')
 # df = df.sample(1000, random_state=1).copy()
+# df2 = df2.sample(1000, random_state=1).copy()
 df.head()
 
 
-# In[6]:
+# In[14]:
 
 
-df['category_id'] = df['subreddits'].factorize()[0]
+df['category_id'], mapping = df['subreddits'].factorize()
 
 
-# In[7]:
+# In[15]:
 
 
 for i in range(df.comments.values.shape[0]):
     df.comments.values[i] = df.comments.values[i][:512]
 
 
-# In[8]:
+# In[16]:
 
 
 # Create sentence and label lists
@@ -118,7 +119,7 @@ sentences = ["[CLS] " + sentence + " [SEP]" for sentence in sentences]
 labels = df.category_id.values
 
 
-# In[9]:
+# In[17]:
 
 
 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
@@ -128,7 +129,7 @@ print ("Tokenize the first sentence:")
 print (tokenized_texts[0])
 
 
-# In[10]:
+# In[18]:
 
 
 # Set the maximum sequence length. The longest sequence in our training set is 47, but we'll leave room on the end anyway. 
@@ -136,21 +137,21 @@ print (tokenized_texts[0])
 MAX_LEN = 512
 
 
-# In[11]:
+# In[19]:
 
 
 # Use the BERT tokenizer to convert the tokens to their index numbers in the BERT vocabulary
 input_ids = [tokenizer.convert_tokens_to_ids(x) for x in tokenized_texts]
 
 
-# In[12]:
+# In[20]:
 
 
 # Pad our input tokens
 input_ids = pad_sequences(input_ids, maxlen=MAX_LEN, dtype="long", truncating="post", padding="post")
 
 
-# In[13]:
+# In[21]:
 
 
 # Create attention masks
@@ -162,7 +163,7 @@ for seq in input_ids:
   attention_masks.append(seq_mask)
 
 
-# In[14]:
+# In[22]:
 
 
 # Use train_test_split to split our data into train and validation sets for training
@@ -173,7 +174,7 @@ train_masks, validation_masks, _, _ = train_test_split(attention_masks, input_id
                                              random_state=2018, test_size=0.05)
 
 
-# In[15]:
+# In[23]:
 
 
 # Convert all of our data into torch tensors, the required datatype for our model
@@ -186,7 +187,7 @@ train_masks = torch.tensor(train_masks)
 validation_masks = torch.tensor(validation_masks)
 
 
-# In[16]:
+# In[24]:
 
 
 # Select a batch size for training. For fine-tuning BERT on a specific task, the authors recommend a batch size of 16 or 32
@@ -204,7 +205,7 @@ validation_sampler = SequentialSampler(validation_data)
 validation_dataloader = DataLoader(validation_data, sampler=validation_sampler, batch_size=batch_size)
 
 
-# In[17]:
+# In[25]:
 
 
 # Load BertForSequenceClassification, the pretrained BERT model with a single linear classification layer on top. 
@@ -213,7 +214,7 @@ model = BertForSequenceClassification.from_pretrained("bert-base-uncased", num_l
 model.cuda()
 
 
-# In[18]:
+# In[26]:
 
 
 
@@ -227,7 +228,7 @@ optimizer_grouped_parameters = [
 ]
 
 
-# In[19]:
+# In[27]:
 
 
 # This variable contains all of the hyperparemeter information our training loop needs
@@ -236,7 +237,7 @@ optimizer = BertAdam(optimizer_grouped_parameters,
                      warmup=.1)
 
 
-# In[20]:
+# In[28]:
 
 
 # Function to calculate the accuracy of our predictions vs labels
@@ -246,6 +247,10 @@ def flat_accuracy(preds, labels):
     return np.sum(pred_flat == labels_flat) / len(labels_flat)
 
 
+
+# In[30]:
+
+
 # Store our loss and accuracy for plotting
 train_loss_set = []
 
@@ -253,7 +258,7 @@ train_loss_set = []
 epochs = 1
 
 # trange is a tqdm wrapper around the normal python range
-for _ in trange(epochs, desc="Epoch"):
+for _ in tnrange(epochs, desc="Epoch"):
     # Training
 
     # Set our model to training mode (as opposed to evaluation mode)
@@ -326,6 +331,109 @@ for _ in trange(epochs, desc="Epoch"):
 
             print("Validation Accuracy: {}".format(eval_accuracy/nb_eval_steps))
             vis.plot('accuracy', 'val_acc', 'val_acc',step,eval_accuracy/nb_eval_steps)
-            
+            torch.save(model, 'main_model_v2.pt')
 
 
+# In[31]:
+
+
+for i in range(df2.comments.values.shape[0]):
+    df2.comments.values[i] = df2.comments.values[i][:512]
+
+
+# In[32]:
+
+
+# Create sentence and label lists
+sentences = df2.comments.values
+
+# We need to add special tokens at the beginning and end of each sentence for BERT to work properly
+sentences = ["[CLS] " + sentence + " [SEP]" for sentence in sentences]
+
+
+# In[33]:
+
+
+tokenized_texts = [tokenizer.tokenize(sent) for sent in sentences]
+
+# Use the BERT tokenizer to convert the tokens to their index numbers in the BERT vocabulary
+input_ids = [tokenizer.convert_tokens_to_ids(x) for x in tokenized_texts]
+# Pad our input tokens
+input_ids = pad_sequences(input_ids, maxlen=MAX_LEN, dtype="long", truncating="post", padding="post")
+# Create attention masks
+attention_masks = []
+
+# Create a mask of 1s for each token followed by 0s for padding
+for seq in input_ids:
+  seq_mask = [float(i>0) for i in seq]
+  attention_masks.append(seq_mask) 
+
+
+# In[35]:
+
+
+prediction_inputs = torch.tensor(input_ids)
+prediction_masks = torch.tensor(attention_masks)
+# prediction_labels = torch.tensor(labels)
+  
+batch_size = 8  
+
+
+prediction_data = TensorDataset(prediction_inputs, prediction_masks)
+prediction_sampler = SequentialSampler(prediction_data)
+prediction_dataloader = DataLoader(prediction_data, sampler=prediction_sampler, batch_size=batch_size)
+
+
+# In[39]:
+
+
+# Prediction on test set
+
+# Put model in evaluation mode
+model.eval()
+
+# Tracking variables 
+predictions = []
+
+# Predict 
+for batch in tqdm(prediction_dataloader,desc='batch',leave=False):
+    # Add batch to GPU
+    batch = tuple(t.to(device) for t in batch)
+    # Unpack the inputs from our dataloader
+    b_input_ids, b_input_mask = batch
+    # Telling the model not to compute or store gradients, saving memory and speeding up prediction
+    with torch.no_grad():
+        # Forward pass, calculate logit predictions
+        logits = model(b_input_ids, token_type_ids=None, attention_mask=b_input_mask)
+
+    # Move logits and labels to CPU
+    logits = logits.detach().cpu().numpy()
+
+    # Store predictions and true labels
+    predictions.append(logits)
+
+
+# In[40]:
+
+
+main_preds = []
+for i in range(len(predictions)):
+    main_preds += list(np.argmax(predictions[i], axis=1))
+    
+print(len(main_preds))
+
+
+# In[42]:
+
+
+test_preds = pd.DataFrame()
+test_preds['Id'] = df2['id']
+test_preds['Category'] = mapping[main_preds]
+
+
+
+
+# In[44]:
+
+
+test_preds.to_csv("test2.csv", index=False)
