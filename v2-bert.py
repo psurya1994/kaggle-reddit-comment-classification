@@ -255,7 +255,7 @@ def flat_accuracy(preds, labels):
 train_loss_set = []
 
 # Number of training epochs (authors recommend between 2 and 4)
-epochs = 2
+epochs = 1
 
 # trange is a tqdm wrapper around the normal python range
 for _ in trange(epochs, desc="Epoch"):
